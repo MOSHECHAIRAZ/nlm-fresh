@@ -57,3 +57,16 @@ func getChromePath() string {
 	}
 	return ""
 }
+
+// Stubs to satisfy the compiler on Linux
+func getBrowserPathForProfile(browserName string) string {
+	return ""
+}
+
+func getCanaryProfilePath() string {
+	return ""
+}
+
+func getBraveProfilePath() string {
+	return ""
+}

@@ -1,6 +1,8 @@
 package batchexecute
 
 import (
+	"bufio"
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -199,6 +201,15 @@ func (c *Client) Execute(rpcs []RPC) (*Response, error) {
 	}
 	req.Header.Set("cookie", c.config.Cookies)
 
+	// Additional headers for impersonation
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+	req.Header.Set("Origin", "https://notebooklm.google.com")
+	req.Header.Set("Referer", "https://notebooklm.google.com/")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("X-Goog-AuthUser", "0")
+
 	if c.config.Debug {
 		fmt.Printf("\nRequest Headers:\n")
 		for k, v := range req.Header {
@@ -274,9 +285,37 @@ func (c *Client) Execute(rpcs []RPC) (*Response, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	// === GZIP FIX START ===
+	// יצירת Reader חכם שבודק אם המידע דחוס
+	var reader io.Reader = resp.Body
+
+	// שימוש ב-bufio כדי "להציץ" ב-2 הבייטים הראשונים בלי לקרוא אותם באמת
+	bufferedReader := bufio.NewReader(resp.Body)
+	headerBytes, err := bufferedReader.Peek(2)
+
+	if err == nil && len(headerBytes) == 2 {
+		// בדיקת "מספרי הקסם" של Gzip (\x1f\x8b)
+		if headerBytes[0] == 0x1f && headerBytes[1] == 0x8b {
+			gzipReader, err := gzip.NewReader(bufferedReader)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+			}
+			defer gzipReader.Close()
+			reader = gzipReader
+		} else {
+			// אם זה לא Gzip, קוראים רגיל דרך ה-Buffer שיצרנו
+			reader = bufferedReader
+		}
+	} else {
+		// במקרה של שגיאה בהצצה (קובץ ריק וכו'), משתמשים במקור
+		reader = resp.Body
+	}
+
+	body, err := io.ReadAll(reader)
+	// === GZIP FIX END ===
+
 	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, fmt.Errorf("read response body: %w", err)
 	}
 
 	if c.config.Debug {

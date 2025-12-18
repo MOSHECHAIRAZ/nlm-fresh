@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "NLM Auth Extractor",
+  "version": "3.0",
+  "permissions": ["activeTab", "scripting", "cookies"],
+  "host_permissions": [
+    "https://notebooklm.google.com/*",
+    "https://www.google.com/*",
+    "https://google.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
